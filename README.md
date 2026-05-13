@@ -19,11 +19,11 @@ tests/test_rbf_hermite_roundtrip.py       Engineering correctness tests (shapes,
 
 ## Key result
 
-At equal memory budget (64 bytes per edge), Hermite LUT achieves **30–86% lower MAE** than linear LUT on the same RBF network. Compared to the original B-spline + linear baseline from Kuznetsov (2026), RBF + Hermite achieves **6–37× lower MAE** at equal memory.
+At equal memory budget (64 bytes per edge), Hermite LUT achieves **30–86% lower MAE** than linear LUT on the same RBF network. Compared to the original B-spline + linear baseline, RBF + Hermite achieves **6–37× lower MAE** at equal memory.
 
 | method | K | L | mem/edge (bytes) | MAE |
 |---|---|---|---|---|
-| B-spline + linear (Kuznetsov) | 7 | 8 | 56 | 0.036 |
+| B-spline + linear | 7 | 8 | 56 | 0.036 |
 | RBF + linear | 8 | 8 | 64 | 0.006 |
 | **RBF + Hermite** | **8** | **4** | **64** | **0.001** |
 | RBF + linear | 8 | 16 | 128 | 0.002 |
