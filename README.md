@@ -64,7 +64,7 @@ pytest tests/test_gkan_lut_workflow.py -v
 # Engineering correctness tests (shapes, NPZ roundtrip, memory)
 pytest tests/test_rbf_hermite_roundtrip.py -v
 
-# Full suite including original Kuznetsov tests
+# Full suite including original tests
 pytest tests/ -v
 ```
 
