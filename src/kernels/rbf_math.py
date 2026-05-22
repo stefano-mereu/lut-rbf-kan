@@ -44,7 +44,7 @@ def gaussian_rbf(x: np.ndarray, mu: float, sigma: float) -> np.ndarray:
     if sigma <= 0.0:
         raise ValueError(f"sigma must be > 0, got {sigma}")
     z = (x - np.float32(mu)) / np.float32(sigma)
-    return np.exp(-0.5 * z * z, dtype=np.float32)
+    return np.exp(-z * z, dtype=np.float32)
 
 
 def gaussian_rbf_deriv(x: np.ndarray, mu: float, sigma: float,
@@ -66,7 +66,7 @@ def gaussian_rbf_deriv(x: np.ndarray, mu: float, sigma: float,
     x = np.asarray(x, dtype=np.float32)
     if psi is None:
         psi = gaussian_rbf(x, mu, sigma)
-    factor = -(x - np.float32(mu)) / np.float32(sigma ** 2)
+    factor = -2.0 * (x - np.float32(mu)) / np.float32(sigma ** 2)
     return (factor * psi).astype(np.float32)
 
 
@@ -103,7 +103,7 @@ def rbf_edge_eval(
 
     # Vectorized: z[k, n] = (x[n] - mu_k) / sigma_k
     z = (x[None, :] - centers[:, None]) / sigmas[:, None]   # [K, N]
-    psi = np.exp(-0.5 * z * z, dtype=np.float32)             # [K, N]
+    psi = np.exp(-z * z, dtype=np.float32)             # [K, N]
     return (coef[:, None] * psi).sum(axis=0).astype(np.float32)
 
 
@@ -132,14 +132,14 @@ def rbf_edge_eval_and_deriv(
 
     K = len(centers)
     z = (x[None, :] - centers[:, None]) / sigmas[:, None]          # [K, N]
-    psi = np.exp(-0.5 * z * z, dtype=np.float32)                    # [K, N]
+    psi = np.exp(-z * z, dtype=np.float32)                    # [K, N]
 
     # phi(x)
     phi = (coef[:, None] * psi).sum(axis=0)                         # [N]
 
     # phi'(x) = sum_k c_k * (-z_k / sigma_k) * psi_k
     # factor_k(x) = -(x - mu_k) / sigma_k^2
-    factors = -(x[None, :] - centers[:, None]) / (sigmas[:, None] ** 2)  # [K, N]
+    factors = -2.0 * (x[None, :] - centers[:, None]) / (sigmas[:, None] ** 2)  # [K, N]
     dphi = (coef[:, None] * factors * psi).sum(axis=0)              # [N]
 
     return phi.astype(np.float32), dphi.astype(np.float32)
