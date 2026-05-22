@@ -47,36 +47,45 @@ def loocv_optimal_h(
     x_data: np.ndarray,
     y_data: np.ndarray,
     G: int,
+    x_min: float = 0.0,
+    x_max: float = 1.0,
     search_range: Optional[Tuple[float, float]] = None,
     num_candidates: int = 30,
 ) -> float:
     """
-    Find optimal h via Leave-One-Out Cross-Validation (Rippa 1999).
+    Find optimal epsilon via Leave-One-Out Cross-Validation (Rippa 1999).
 
-    For Gaussian KAN with G centers on [0,1]:
-        search_range = (0.8/(G-1), 2.5/(G-1))
+    Conditioning interval from Noorizadegan & Wang (2026):
+        epsilon in [h/2, 3h/2]  where h = (x_max - x_min) / (G - 1)
+
+    This keeps h/epsilon in [2/3, 2], ensuring well-conditioned feature matrix.
+    The formula used is phi(x) = exp(-((x-mu)/epsilon)^2) — no 0.5 factor.
 
     This is efficient: LOOCV score = sum_i (c_i / A_ii^{-1})^2
     where c = A^{-1} y and A_ii^{-1} is the i-th diagonal of A^{-1}.
     No re-fitting needed for each left-out point.
 
     Args:
-        x_data:       (N,) or (N, d) training inputs, assumed in [0, 1]
+        x_data:       (N,) training inputs
         y_data:       (N,) training targets
         G:            number of RBF centers
-        search_range: (h_min, h_max) — defaults to theoretical interval × 1.5 buffer
-        num_candidates: number of h values to try (log-spaced)
+        x_min:        domain lower bound (default 0.0)
+        x_max:        domain upper bound (default 1.0)
+        search_range: override (eps_min, eps_max) — defaults to [h/2, 3h/2]
+        num_candidates: number of epsilon values to try (log-spaced)
 
     Returns:
-        h_opt: float, optimal shape parameter
+        eps_opt: float, optimal shape parameter
     """
     x_data = np.asarray(x_data, dtype=np.float64).ravel()
     y_data = np.asarray(y_data, dtype=np.float64).ravel()
     N = len(x_data)
 
+    # Conditioning interval: epsilon in [h/2, 3h/2]
+    h_spacing = (x_max - x_min) / (G - 1)
     if search_range is None:
-        h_min = 0.8 / (G - 1)
-        h_max = 2.5 / (G - 1)
+        h_min = h_spacing / 2.0
+        h_max = 3.0 * h_spacing / 2.0
     else:
         h_min, h_max = search_range
 
@@ -121,12 +130,15 @@ def loocv_optimal_h(
     return best_h
 
 
-def theoretical_h_init(G: int) -> float:
+def theoretical_h_init(G: int, x_min: float = 0.0, x_max: float = 1.0) -> float:
     """
-    Midpoint of theoretical interval [1/(G-1), 2/(G-1)].
-    Simple fallback when LOOCV overhead is not desired.
+    Midpoint of conditioning interval [h/2, 3h/2] where h = (x_max-x_min)/(G-1).
+
+    From Noorizadegan & Wang (2026): keeps h/epsilon in [2/3, 2].
+    The midpoint h corresponds to h/epsilon = 1 — optimal conditioning.
     """
-    return 1.5 / (G - 1)
+    h_spacing = (x_max - x_min) / (G - 1)
+    return h_spacing  # midpoint of [h/2, 3h/2]
 
 
 # ---------------------------------------------------------------------------
