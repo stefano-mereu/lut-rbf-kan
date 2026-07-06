@@ -1,0 +1,14 @@
+# Dataset (download separately, see README)
+*.csv
+data/
+dos_data/
+# Trained models and outputs
+*.pt
+*.pkl
+model/
+outputs/
+# Logs
+*.log
+# Python cache
+__pycache__/
+*.pyc
