@@ -68,6 +68,16 @@ Full sweep K∈{4,8,16} × L∈{4,8,16}.
 
 **Hermite valid regime: K≥4, L∈[4,8].** With K<4 the segments are too wide relative to the Gaussian scale h and the cubic polynomial can overshoot. At L≥32 the int8 quantization of the derivative table introduces noise that reduces the Hermite advantage — this is a quantization floor effect, not an algorithmic one (with float32 derivatives Hermite always wins).
 
+### 2D case: sin(pi x)cos(pi y)
+
+With a single [2,1] layer both models underfit (float_err ~ 0.178 for B-spline
+and RBF alike), and the LUT adds essentially nothing on top (task_err ~ float_err
+for every config; e.g. at K=8, L=4: B-spline+linear 0.1789, RBF+linear 0.1764,
+RBF+Hermite 0.1779). phi_err still shows the expected ordering (Hermite 0.0007
+vs linear 0.0102 at L=4), but when the model itself is the bottleneck the
+interpolation scheme is irrelevant for the task. Included for completeness:
+this is the regime where Hermite is not needed.
+
 ## Why Hermite works here
 
 The Gaussian edge function `φ(x) = Σₖ cₖ exp(-((x-μₖ)/ε)²)` has an analytic derivative:

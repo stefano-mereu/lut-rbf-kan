@@ -167,21 +167,25 @@ def lobachevsky3_interp(
     Returns:
         y:   (N,) interpolated values
     """
-    # Map t in [0,1] to local coords centered at each node
-    # Left node is at local coord (t - 0), right node at (t - 1)
-    tl = t - np.float32(0.0)   # distance from left node: t
-    tr = t - np.float32(1.0)   # distance from right node: t - 1 (negative in [0,1])
-
-    # Λ₃ weights (value terms)
-    w0 = lobachevsky3(tl - np.float32(0.5))   # centered: t - 0 - 0.5 = t - 0.5
-    w1 = lobachevsky3(tr + np.float32(0.5))   # centered: t - 1 + 0.5 = t - 0.5 same → use tr+0.5
-
-    # Λ₃' weights (derivative terms, scaled by dx)
-    dw0 = lobachevsky3_deriv(tl - np.float32(0.5))
-    dw1 = lobachevsky3_deriv(tr + np.float32(0.5))
-
+    # 4-node quasi-interpolation with exact partition of unity.
+    # Lambda3 has support [-1.5, 1.5]: for t in [0,1] the contributing lattice
+    # nodes are -1, 0, 1, 2. Ghost values at -1 and 2 are Taylor estimates
+    # from the stored derivatives (available at no extra memory cost):
+    #     v[-1] ~ v0 - dx*d0,   v[2] ~ v1 + dx*d1
+    # Sum of the four Lambda3 weights is exactly 1 on [0,1], so the
+    # reconstruction is unbiased and converges (order 2).
+    t32 = np.asarray(t, dtype=np.float32)
     dx32 = np.float32(dx)
-    return (w0 * v0 + dw0 * dx32 * d0 + w1 * v1 + dw1 * dx32 * d1).astype(np.float32)
+
+    w_m1 = lobachevsky3(t32 + np.float32(1.0))
+    w_0  = lobachevsky3(t32)
+    w_1  = lobachevsky3(t32 - np.float32(1.0))
+    w_2  = lobachevsky3(t32 - np.float32(2.0))
+
+    v_m1 = v0 - dx32 * d0
+    v_2  = v1 + dx32 * d1
+
+    return (w_m1 * v_m1 + w_0 * v0 + w_1 * v1 + w_2 * v_2).astype(np.float32)
 
 
 # ---------------------------------------------------------------------------
