@@ -49,6 +49,42 @@ normalization is part of what makes the RBF architecture LUT-friendly.
 The task saturates quickly (logistic regression reaches F1 0.989), so
 MAE on pre-threshold logits is reported as the finer-grained metric.
 
+## Second dataset: ToN_IoT (normal vs dos)
+
+`Train_Test_Network.csv` (UNSW), binary normal-vs-dos, 20k/class, 16 numeric
+features. Preprocessing mirrors CICIDS with two dataset-driven fixes
+(`preprocessing_ton.py`): the IQR clip is skipped when IQR=0 (on sparse
+columns q1=q3=0 and clipping would collapse them to constants), and scaled
+features are winsorized at +-10 sigma (heavy-tailed sparse columns otherwise
+reach ~200 sigma, leaving uniform LUT knots no resolution where data lives).
+`ts` is dropped (time-clustered attacks = label leakage); IPs are excluded
+(labels were assigned by tagging attacker IPs).
+
+Float: B-spline F1 0.9936, RBF-KAN 0.9953. Unlike CICIDS the task does not
+saturate at the same level, so F1 differences are visible directly.
+
+| base     | interp  | L | mem/edge | F1     | MAE_logit |
+|----------|---------|---|----------|--------|-----------|
+| B-spline | linear  | 2 | 16 B     | 0.0000 | 6.622     |
+| RBF      | linear  | 2 | 16 B     | 0.1114 | 5.636     |
+| B-spline | hermite | 2 | 32 B     | 0.0961 | 4.664     |
+| RBF      | hermite | 2 | 32 B     | 0.9900 | 1.842     |
+| B-spline | linear  | 4 | 32 B     | 0.9873 | 1.643     |
+| RBF      | linear  | 4 | 32 B     | 0.9961 | 0.415     |
+| B-spline | hermite | 4 | 64 B     | 0.9932 | 0.235     |
+| RBF      | hermite | 4 | 64 B     | 0.9951 | 0.013     |
+| B-spline | linear  | 8 | 64 B     | 0.9927 | 0.339     |
+| RBF      | linear  | 8 | 64 B     | 0.9960 | 0.119     |
+| B-spline | hermite | 8 | 128 B    | 0.9936 | 0.011     |
+| RBF      | hermite | 8 | 128 B    | 0.9949 | 0.009     |
+
+At L=2 every other configuration collapses; RBF+Hermite is the only one
+alive (F1 0.990). At L=4 it recovers float exactly with MAE 20-125x below
+the alternatives. Design note: Hermite benefits from sample spacing
+dx = segw/(L-1) not exceeding the learned kernel width h (verified by a
+layer-wise bisect during development; with healthy preprocessing the L=2
+cell holds even slightly above that threshold).
+
 ## Pipeline
 
 Requires the CICIDS2017 `Wednesday-workingHours.pcap_ISCX.csv` in `data/`
