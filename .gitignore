@@ -90,4 +90,4 @@ mcu_auto/reports_hw/
 # Python cache in mcu_auto
 mcu_auto/__pycache__/
 mcu_auto/**/__pycache__/
-mcu_auto/**/*.pyc
+mcu_auto/**/*.pyc/lut_eval_bspline.py

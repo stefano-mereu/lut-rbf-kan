@@ -12,3 +12,4 @@ outputs/
 # Python cache
 __pycache__/
 *.pyc
+dos_data
