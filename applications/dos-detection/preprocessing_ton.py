@@ -56,34 +56,42 @@ def prepare_ton_data(filepath, attack_type="dos", max_samples_per_class=20000):
                     if c != "attack" and c not in DROP_COLS]
     print(f"Features ({len(numeric_cols)}): {numeric_cols}")
 
+    y_all = df["attack"].values.astype(np.float32)
     df = df.replace([np.inf, -np.inf], np.nan)
+
+    # LEAK-FREE: split row indices FIRST; every statistic below (median,
+    # IQR bounds, constant-column check, scaler) is computed on TRAIN ONLY
+    # and applied to both splits.
+    idx = np.arange(len(df))
+    idx_tr, idx_te = train_test_split(
+        idx, test_size=0.2, random_state=42, stratify=y_all
+    )
+
     kept = []
     for col in numeric_cols:
-        median = df[col].median()
+        median = df.iloc[idx_tr][col].median()
         df[col] = df[col].fillna(median)
-        q1, q3 = df[col].quantile(0.25), df[col].quantile(0.75)
+        q1 = df.iloc[idx_tr][col].quantile(0.25)
+        q3 = df.iloc[idx_tr][col].quantile(0.75)
         iqr = q3 - q1
-        if iqr > 0:  # clip only when IQR is non-degenerate: on sparse ToN
-            # columns q1=q3=0 and clipping would collapse them to constants
+        if iqr > 0:  # skip degenerate IQR on sparse columns
             df[col] = df[col].clip(q1 - 3 * iqr, q3 + 3 * iqr)
-        if df[col].std() > 1e-9:  # drop residual constant columns
+        if df.iloc[idx_tr][col].std() > 1e-9:
             kept.append(col)
-    dropped = [c for c in numeric_cols if c not in kept]
+    dropped = [c2 for c2 in numeric_cols if c2 not in kept]
     if dropped:
         print(f"Dropped constant columns ({len(dropped)}): {dropped}")
     numeric_cols = kept
 
     scaler = StandardScaler()
-    X = scaler.fit_transform(df[numeric_cols]).astype(np.float32)
-    # Winsorize extreme outliers in scaled space (sparse heavy-tailed columns
-    # survive the degenerate-IQR skip but can reach ~200 sigma; uniform LUT
-    # knots over such a range would leave no resolution where the data lives)
+    scaler.fit(df.iloc[idx_tr][numeric_cols])
+    X = scaler.transform(df[numeric_cols]).astype(np.float32)
+    # Winsorize in scaled space (bounds are scale-relative, train-derived)
     X = np.clip(X, -10.0, 10.0)
-    y = df["attack"].values.astype(np.float32)
+    y = y_all
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
-    )
+    X_train, X_test = X[idx_tr], X[idx_te]
+    y_train, y_test = y[idx_tr], y[idx_te]
 
     dataset = {
         "train_input": torch.from_numpy(X_train),

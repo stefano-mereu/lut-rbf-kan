@@ -41,6 +41,35 @@ from src.kernels.lut_backend_dense_numpy_rbf import (
 FD_EPS = 1e-3  # central finite-difference step for edge derivative
 
 
+
+def packed_totals(packed_list):
+    """Measured bytes and edge count over a list of packed layers."""
+    import numpy as _np
+    tot, edges = 0, 0
+    for pk in packed_list:
+        qf = pk.q_flat
+        try:
+            e = int(qf.shape[0]) * int(qf.shape[1])
+        except AttributeError:
+            e = len(qf) * int(qf[0].shape[0])
+        edges += e
+        ab = getattr(pk, "art_bytes", None)
+        if ab is not None:
+            tot += int(ab)
+            continue
+        for name in ("knots", "q_flat", "scale", "y_min",
+                     "dq_flat", "dscale", "dy_min"):
+            a = getattr(pk, name, None)
+            if a is None:
+                continue
+            if isinstance(a, _np.ndarray):
+                tot += int(a.nbytes)
+            elif isinstance(a, (list, tuple)):
+                for x in a:
+                    if x is not None:
+                        tot += int(x.nbytes)
+    return tot, edges
+
 def wrap_edges_with_deriv(edges, knots):
     """
     Wrap PyKAN EdgeSpec list into RBFEdgeSpec list with FD derivative.
@@ -83,10 +112,16 @@ def compile_layer(model, layer_idx, x_min, x_max, K, L, interp):
         edges=wrapped, L=L, interp=interp,
         y_range_method="minmax", lower_pct=0.0, upper_pct=100.0,
         dtype="uint8", scheme="asymmetric", qmin=0, qmax=255,
+        meta_dtype="float16",
     )
     packed = pack_rbf_dense_layer(
         art, edges=wrapped, in_dim=adapter.in_dim, out_dim=adapter.out_dim
     )
+    from src.quant.lut_builder_rbf import rbf_artifact_memory_bytes
+    try:
+        packed.art_bytes = int(rbf_artifact_memory_bytes(art))
+    except Exception:
+        object.__setattr__(packed, "art_bytes", int(rbf_artifact_memory_bytes(art)))
     return packed
 
 
@@ -165,7 +200,8 @@ def main():
             logits = forward_cascade(x_te, packed).ravel()
             f1 = f1_score(y_te, (logits > 0).astype(int))
             mae = float(np.mean(np.abs(logits_float - logits)))
-            mem = args.K * L * (2 if interp == "hermite" else 1)
+            mem_tot, n_edges = packed_totals(packed)
+            mem = mem_tot // max(n_edges, 1)
             print(f"{interp:>8} {L:>3} {mem:>9} {f1:>8.4f} "
                   f"{f1 - f1_float:>+9.4f} {mae:>10.5f}")
         print()

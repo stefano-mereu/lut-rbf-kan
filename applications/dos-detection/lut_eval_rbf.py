@@ -37,6 +37,35 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from rbf_multilayer import RBFKANMultiLayer
 
 
+
+def packed_totals(packed_list):
+    """Measured bytes and edge count over a list of packed layers."""
+    import numpy as _np
+    tot, edges = 0, 0
+    for pk in packed_list:
+        qf = pk.q_flat
+        try:
+            e = int(qf.shape[0]) * int(qf.shape[1])
+        except AttributeError:
+            e = len(qf) * int(qf[0].shape[0])
+        edges += e
+        ab = getattr(pk, "art_bytes", None)
+        if ab is not None:
+            tot += int(ab)
+            continue
+        for name in ("knots", "q_flat", "scale", "y_min",
+                     "dq_flat", "dscale", "dy_min"):
+            a = getattr(pk, name, None)
+            if a is None:
+                continue
+            if isinstance(a, _np.ndarray):
+                tot += int(a.nbytes)
+            elif isinstance(a, (list, tuple)):
+                for x in a:
+                    if x is not None:
+                        tot += int(x.nbytes)
+    return tot, edges
+
 def compile_layer_lut(rbf_layer, K, L, interp):
     """Compile one RBFKANLayerTorch to a packed LUT over [0,1]."""
     adapter = RBFKANSingleLayerAdapter.from_trained_layer(rbf_layer)
@@ -48,10 +77,16 @@ def compile_layer_lut(rbf_layer, K, L, interp):
         edges=edges, L=L, interp=interp,
         y_range_method="minmax", lower_pct=0.0, upper_pct=100.0,
         dtype="uint8", scheme="asymmetric", qmin=0, qmax=255,
+        meta_dtype="float16",
     )
     packed = pack_rbf_dense_layer(
         art, edges=edges, in_dim=adapter.in_dim, out_dim=adapter.out_dim
     )
+    from src.quant.lut_builder_rbf import rbf_artifact_memory_bytes
+    try:
+        packed.art_bytes = int(rbf_artifact_memory_bytes(art))
+    except Exception:
+        object.__setattr__(packed, "art_bytes", int(rbf_artifact_memory_bytes(art)))
     return packed
 
 
@@ -124,7 +159,8 @@ def main():
             preds = (logits_lut > 0).astype(int)
             f1 = f1_score(y_te, preds)
             mae_logit = float(np.mean(np.abs(logits_float - logits_lut)))
-            mem = args.K * L * (2 if interp == "hermite" else 1)
+            mem_tot, n_edges = packed_totals(packed_layers)
+            mem = mem_tot // max(n_edges, 1)
 
             print(f"{interp:>8} {L:>3} {mem:>9} {f1:>8.4f} "
                   f"{f1 - f1_float:>+9.4f} {mae_logit:>10.5f}")

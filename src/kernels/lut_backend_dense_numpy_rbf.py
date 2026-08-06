@@ -87,7 +87,6 @@ def pack_rbf_dense_layer(
 
         dq_dense = np.empty((in_dim, out_dim, K, L), dtype=np.int8)
         ds_dense = np.empty((in_dim, out_dim, K), dtype=np.float32)
-        dm_dense = np.zeros((in_dim, out_dim, K), dtype=np.float32)
 
         dscale_art = np.asarray(art.dscale, dtype=np.float32)
         dq_art = np.asarray(art.dq_table)
@@ -100,7 +99,7 @@ def pack_rbf_dense_layer(
 
         dq_flat = dq_dense.reshape(in_dim, out_dim, K * L)
         dscale_dense = ds_dense
-        dy_min_dense = dm_dense
+        dy_min_dense = None
 
     # Build PackedRBFLUT by copying all fields from base + adding deriv arrays
     return PackedRBFLUT(

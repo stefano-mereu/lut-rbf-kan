@@ -169,12 +169,16 @@ def build_rbf_lut_for_edges(
     else:
         q_table = q.astype(np.int8)
 
-    md = np.float32   # always float32 for extended artifact
+    md = np.float16 if meta_dtype == "float16" else np.float32
 
-    # --- Quantize derivatives (always symmetric int8) ---
-    dq_table, dscale, dy_min_arr = quantize_deriv_table(
-        dfloat_lut, qmin=-127, qmax=127
-    )
+    # --- Quantize derivatives (only for interpolators that use them) ---
+    store_deriv = interp in ("hermite", "lobachevsky3")
+    if store_deriv:
+        dq_table, dscale, dy_min_arr = quantize_deriv_table(
+            dfloat_lut, qmin=-127, qmax=127
+        )
+    else:
+        dq_table, dscale, dy_min_arr = None, None, None
 
     return RBFLUTArtifact(
         format_version=2,           # new version for extended format
@@ -194,6 +198,19 @@ def build_rbf_lut_for_edges(
         base_kind="none",
         # derivative tables
         dq_table=dq_table,
-        dscale=dscale.astype(md),
-        dy_min=dy_min_arr.astype(md),
+        dscale=None if dscale is None else dscale.astype(md),
+        dy_min=None,  # always zero under symmetric quantization
     )
+
+
+def rbf_artifact_memory_bytes(art) -> int:
+    """Measured size of everything the artifact stores (values, derivative
+    tables when present, per-segment quantization metadata, knots)."""
+    import numpy as _np
+    tot = 0
+    for name in ("knots", "q_table", "scale", "y_min",
+                 "dq_table", "dscale", "dy_min"):
+        a = getattr(art, name, None)
+        if isinstance(a, _np.ndarray):
+            tot += int(a.nbytes)
+    return tot

@@ -55,23 +55,31 @@ def prepare_dos_data(filepath, attack_type="DoS Hulk", max_samples_per_class=231
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
     numeric_cols = [c for c in numeric_cols if c != "attack"]
 
-    # Clean: inf -> NaN -> median; clip IQR outliers
+    y_all = df["attack"].values.astype(np.float32)
     df = df.replace([np.inf, -np.inf], np.nan)
+
+    # LEAK-FREE: split indices first; median, IQR bounds and scaler are
+    # computed on TRAIN ONLY and applied to both splits.
+    idx = np.arange(len(df))
+    idx_tr, idx_te = train_test_split(
+        idx, test_size=0.2, random_state=42, stratify=y_all
+    )
+
     for col in numeric_cols:
-        median = df[col].median()
+        median = df.iloc[idx_tr][col].median()
         df[col] = df[col].fillna(median)
-        q1, q3 = df[col].quantile(0.25), df[col].quantile(0.75)
+        q1 = df.iloc[idx_tr][col].quantile(0.25)
+        q3 = df.iloc[idx_tr][col].quantile(0.75)
         iqr = q3 - q1
         df[col] = df[col].clip(q1 - 3 * iqr, q3 + 3 * iqr)
 
-    # Standardize
     scaler = StandardScaler()
-    X = scaler.fit_transform(df[numeric_cols]).astype(np.float32)
-    y = df["attack"].values.astype(np.float32)
+    scaler.fit(df.iloc[idx_tr][numeric_cols])
+    X = scaler.transform(df[numeric_cols]).astype(np.float32)
+    y = y_all
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
-    )
+    X_train, X_test = X[idx_tr], X[idx_te]
+    y_train, y_test = y[idx_tr], y[idx_te]
 
     dataset = {
         "train_input": torch.from_numpy(X_train),
