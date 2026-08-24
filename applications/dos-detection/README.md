@@ -23,6 +23,17 @@ in float16 (scale + y_min = 4 bytes/segment; hermite adds dscale =
 2 bytes/segment). `dy_min` is not stored (always zero under symmetric
 derivative quantization). Closed form: linear = K(L+4), hermite = K(2L+6).
 
+## Calibration and runtime
+
+B-spline LUT domains are calibrated on a frozen 20k TRAIN subset (no test
+statistics anywhere in the pipeline). B-spline Hermite derivatives use
+central finite differences with eps=1e-3, verified stable across
+eps in [1e-2, 1e-3] (relative agreement 4e-4; fp32 cancellation onset at
+1e-4). Runtime (NumPy backend, indicative of relative interpolation cost,
+not deployment C timing): linear 5.6 us/sample, Hermite 9.2 us/sample
+(1.65x) on ToN, K=8 L=4 -- the memory-at-target advantage is bought with
+~1.65x per-sample interpolation cost.
+
 ## Float models
 
 | Dataset   | B-spline (PyKAN) | RBF-KAN (ours) |
@@ -34,34 +45,34 @@ derivative quantization). Closed form: linear = K(L+4), hermite = K(2L+6).
 
 | base     | interp  | L | mem/edge | F1     | MAE_logit |
 |----------|---------|---|----------|--------|-----------|
-| B-spline | linear  | 2 | 48 B     | 0.7892 | 7.832     |
+| B-spline | linear  | 2 | 48 B     | 0.7839 | 7.943     |
 | RBF      | linear  | 2 | 48 B     | 0.9898 | 2.318     |
-| B-spline | hermite | 2 | 80 B     | 0.7973 | 5.938     |
+| B-spline | hermite | 2 | 80 B     | 0.7925 | 6.235     |
 | RBF      | hermite | 2 | 80 B     | 0.9978 | 0.155     |
-| B-spline | linear  | 4 | 64 B     | 0.8311 | 3.678     |
+| B-spline | linear  | 4 | 64 B     | 0.8296 | 3.591     |
 | RBF      | linear  | 4 | 64 B     | 0.9978 | 0.186     |
-| B-spline | hermite | 4 | 112 B    | 0.9258 | 1.051     |
+| B-spline | hermite | 4 | 112 B    | 0.9855 | 0.905     |
 | RBF      | hermite | 4 | 112 B    | 0.9977 | 0.007     |
-| B-spline | linear  | 8 | 96 B     | 0.9792 | 1.153     |
+| B-spline | linear  | 8 | 96 B     | 0.9139 | 1.203     |
 | RBF      | linear  | 8 | 96 B     | 0.9978 | 0.038     |
-| B-spline | hermite | 8 | 176 B    | 0.9987 | 0.035     |
+| B-spline | hermite | 8 | 176 B    | 0.9987 | 0.026     |
 | RBF      | hermite | 8 | 176 B    | 0.9976 | 0.005     |
 
 ## ToN_IoT, K=8 (measured bytes)
 
 | base     | interp  | L | mem/edge | F1     | MAE_logit |
 |----------|---------|---|----------|--------|-----------|
-| B-spline | linear  | 2 | 48 B     | 0.0000 | 7.309     |
+| B-spline | linear  | 2 | 48 B     | 0.0000 | 6.744     |
 | RBF      | linear  | 2 | 48 B     | 0.9240 | 3.842     |
-| B-spline | hermite | 2 | 80 B     | 0.0431 | 5.803     |
+| B-spline | hermite | 2 | 80 B     | 0.0286 | 6.378     |
 | RBF      | hermite | 2 | 80 B     | 0.9656 | 1.579     |
-| B-spline | linear  | 4 | 64 B     | 0.9827 | 1.692     |
+| B-spline | linear  | 4 | 64 B     | 0.9870 | 2.047     |
 | RBF      | linear  | 4 | 64 B     | 0.9965 | 0.220     |
-| B-spline | hermite | 4 | 112 B    | 0.9924 | 0.129     |
+| B-spline | hermite | 4 | 112 B    | 0.9927 | 0.334     |
 | RBF      | hermite | 4 | 112 B    | 0.9956 | 0.008     |
-| B-spline | linear  | 8 | 96 B     | 0.9926 | 0.328     |
+| B-spline | linear  | 8 | 96 B     | 0.9929 | 0.598     |
 | RBF      | linear  | 8 | 96 B     | 0.9956 | 0.059     |
-| B-spline | hermite | 8 | 176 B    | 0.9934 | 0.006     |
+| B-spline | hermite | 8 | 176 B    | 0.9934 | 0.005     |
 | RBF      | hermite | 8 | 176 B    | 0.9955 | 0.004     |
 
 ## Memory at fixed accuracy (K in {4,8} sweep, RBF base)

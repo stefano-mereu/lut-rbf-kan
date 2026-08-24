@@ -169,7 +169,12 @@ def main():
         x_te, y_te = x_te[idx], y_te[idx]
     print(f"Test samples: {len(x_te)}")
 
-    domains = get_layer_domains(model, torch.from_numpy(x_te))
+    x_cal = d["train_input"].numpy()
+    if len(x_cal) > 20000:
+        rng_cal = np.random.default_rng(0)
+        x_cal = x_cal[rng_cal.choice(len(x_cal), 20000, replace=False)]
+    domains = get_layer_domains(model, torch.from_numpy(x_cal))
+    print(f"LUT domains calibrated on {len(x_cal)} TRAIN samples (frozen)")
     for i, (lo, hi) in enumerate(domains):
         print(f"  layer {i} domain: [{lo:.2f}, {hi:.2f}]")
 
